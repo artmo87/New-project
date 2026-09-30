@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Week Briefing</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Briefing">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <style>
+    :root {
+      --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73;
+      --line: #e4e2dc; --accent: #3a5bd9; --accent-text: #ffffff; --today: #eef1fd;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16171a; --card: #202226; --text: #f2f2f4; --muted: #9a9ba1;
+        --line: #2e3035; --accent: #7d95ff; --accent-text: #0f1220; --today: #252a3d;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 17px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+      -webkit-text-size-adjust: 100%;
+    }
+    main { max-width: 560px; margin: 0 auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 16px; }
+    h1 { font-size: 28px; line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+    .sub { color: var(--muted); font-size: 15px; margin-top: 2px; }
+    button {
+      font: inherit; border: 0; border-radius: 12px; padding: 14px 18px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .primary { width: 100%; background: var(--accent); color: var(--accent-text); font-weight: 600; }
+    .ghost { background: transparent; color: var(--accent); padding: 8px 4px; font-size: 15px; }
+    .day { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-top: 12px; }
+    .day.today { background: var(--today); }
+    .day h2 { font-size: 15px; font-weight: 600; margin: 0 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .day.today h2 { color: var(--accent); }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { display: grid; grid-template-columns: 76px 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+    li:first-child { border-top: 0; }
+    .time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 15px; padding-top: 1px; }
+    .title { overflow-wrap: anywhere; }
+    .where { color: var(--muted); font-size: 14px; }
+    .empty { color: var(--muted); font-size: 15px; }
+    .notice { color: var(--muted); font-size: 15px; margin: 16px 0; }
+    .error { color: #c0392b; }
+    input {
+      width: 100%; font: inherit; padding: 12px 14px; border-radius: 12px;
+      border: 1px solid var(--line); background: var(--card); color: var(--text); margin: 8px 0 12px;
+    }
+    details { margin-top: 24px; color: var(--muted); font-size: 15px; }
+    summary { cursor: pointer; color: var(--accent); }
+    code { font: 13px ui-monospace, Menlo, monospace; overflow-wrap: anywhere; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 id="heading">This week</h1>
+      <div class="sub" id="updated"></div>
+    </div>
+    <button class="ghost" id="refresh" type="button">Refresh</button>
+  </header>
+
+  <section id="setup" hidden>
+    <p class="notice">Enter the <strong>BRIEFING_KEY</strong> you set in Vercel. It stays on this phone.</p>
+    <form id="keyForm">
+      <input id="keyInput" type="password" autocomplete="off" placeholder="Briefing key" required>
+      <button class="primary" type="submit">Save</button>
+    </form>
+  </section>
+
+  <section id="app" hidden>
+    <button class="primary" id="speak" type="button">▶ Play briefing</button>
+    <div id="status" class="notice" hidden></div>
+    <div id="week"></div>
+    <details>
+      <summary>Settings</summary>
+      <p>Shortcut URL for the 7:30 automation:</p>
+      <p><code id="shortcutUrl"></code></p>
+      <button class="ghost" id="copyUrl" type="button">Copy URL</button>
+      <button class="ghost" id="forget" type="button">Forget key</button>
+    </details>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get() { try { return localStorage.getItem('briefingKey') || ''; } catch { return ''; } },
+    set(v) { try { localStorage.setItem('briefingKey', v); } catch {} },
+    clear() { try { localStorage.removeItem('briefingKey'); } catch {} },
+  };
+  let briefing = null;
+
+  function show(section) {
+    $('setup').hidden = section !== 'setup';
+    $('app').hidden = section !== 'app';
+    $('refresh').hidden = section !== 'app';
+  }
+
+  function status(msg, isError = false) {
+    $('status').hidden = !msg;
+    $('status').textContent = msg || '';
+    $('status').classList.toggle('error', isError);
+  }
+
+  function render(data) {
+    const week = $('week');
+    week.replaceChildren();
+    for (const day of data.days) {
+      const box = document.createElement('div');
+      box.className = 'day' + (day.isToday ? ' today' : '');
+      const h = document.createElement('h2');
+      h.textContent = day.label;
+      box.append(h);
+      if (day.events.length === 0) {
+        const p = document.createElement('div');
+        p.className = 'empty';
+        p.textContent = 'Nothing scheduled';
+        box.append(p);
+      } else {
+        const ul = document.createElement('ul');
+        for (const ev of day.events) {
+          const li = document.createElement('li');
+          const t = document.createElement('span');
+          t.className = 'time';
+          t.textContent = ev.time;
+          const body = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'title';
+          title.textContent = ev.title;
+          body.append(title);
+          if (ev.location) {
+            const w = document.createElement('div');
+            w.className = 'where';
+            w.textContent = ev.location;
+            body.append(w);
+          }
+          li.append(t, body);
+          ul.append(li);
+        }
+        box.append(ul);
+      }
+      week.append(box);
+    }
+    const when = new Date(data.generatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    $('updated').textContent = `Updated ${when}`;
+  }
+
+  async function load() {
+    const key = store.get();
+    if (!key) { show('setup'); return; }
+    show('app');
+    $('shortcutUrl').textContent = `${location.origin}/api/briefing?format=text&key=${encodeURIComponent(key)}`;
+    status('Loading…');
+    try {
+      const res = await fetch('/api/briefing', { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' });
+      const data = await res.json();
+      if (res.status === 401) { store.clear(); show('setup'); status(''); return; }
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      briefing = data;
+      render(data);
+      status('');
+    } catch (err) {
+      status(`Couldn't load your calendar: ${err.message}`, true);
+    }
+  }
+
+  function speak() {
+    const synth = window.speechSynthesis;
+    if (synth.speaking) { synth.cancel(); return; }
+    if (!briefing) return;
+    const u = new SpeechSynthesisUtterance(briefing.text);
+    u.lang = 'en-US';
+    u.rate = 1;
+    u.onstart = () => { $('speak').textContent = '■ Stop'; };
+    u.onend = u.onerror = () => { $('speak').textContent = '▶ Play briefing'; };
+    synth.speak(u);
+  }
+
+  $('keyForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    store.set($('keyInput').value.trim());
+    $('keyInput').value = '';
+    load();
+  });
+  $('speak').addEventListener('click', speak);
+  $('refresh').addEventListener('click', load);
+  $('forget').addEventListener('click', () => { store.clear(); show('setup'); });
+  $('copyUrl').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('shortcutUrl').textContent); $('copyUrl').textContent = 'Copied'; }
+    catch { $('copyUrl').textContent = 'Copy failed — select it manually'; }
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && store.get()) load(); });
+
+  load();
+</script>
+</body>
+</html>

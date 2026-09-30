@@ -1,0 +1,13 @@
+{
+  "name": "week-voice-briefing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spoken morning briefing of your Google Calendar week, for iPhone Safari and iOS Shortcuts",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
