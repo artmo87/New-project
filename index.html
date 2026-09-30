@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1c2c">
+<title>FLY SIM</title>
+<style>
+  html,body{margin:0;height:100%;background:#1a1c2c;overflow:hidden;overscroll-behavior:none}
+  body{display:flex;align-items:center;justify-content:center;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;display:block}
+</style>
+</head>
+<body>
+<canvas id="c" width="180" height="320"></canvas>
+<script>
+(() => {
+const W = 180, H = 320;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// ---------- layout ----------
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  cv.style.width = W * s + 'px';
+  cv.style.height = H * s + 'px';
+}
+addEventListener('resize', fit); addEventListener('orientationchange', fit); fit();
+
+// ---------- palette ----------
+const C = { ink:'#1a1c2c', red:'#b13e53', cloth:'#f4f4f4', clothB:'#e7a7a7', yellow:'#ffcd75',
+  green:'#38b764', blue:'#41a6f6', wing:'#c8e6ff', eye:'#ff2d55', body:'#333c57', brown:'#8a5a3c',
+  pink:'#ff77a8', white:'#ffffff', grey:'#94b0c2' };
+
+// ---------- background ----------
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+(() => {
+  const b = bg.getContext('2d');
+  for (let y = 0; y < H / 16; y++) for (let x = 0; x < W / 16 + 1; x++) {
+    b.fillStyle = (x + y) % 2 ? C.clothB : C.cloth;
+    b.fillRect(x * 16, y * 16, 16, 16);
+  }
+  b.fillStyle = 'rgba(177,62,83,.25)';
+  for (let y = 0; y < H / 16; y++) for (let x = 0; x < W / 16 + 1; x++)
+    if ((x + y) % 2 === 0 && (x % 2 === 0)) b.fillRect(x * 16, y * 16, 16, 16);
+})();
+
+// ---------- audio ----------
+let actx = null;
+function initAudio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function beep(f, d, type = 'square', f2 = null, vol = 0.08) {
+  if (!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + d);
+}
+
+// ---------- state ----------
+let state = 'title', t0 = 0, time = 0, score = 0, energy = 100, overAt = 0, shake = 0;
+let best = 0; try { best = +localStorage.getItem('flysim-best') || 0; } catch (e) {}
+const fly = { x: W / 2, y: H * 0.7, vx: 0, vy: 0, ang: -Math.PI / 2 };
+let foods = [], swatters = [], spiders = [], puffs = [];
+let swatTimer = 0, spiderTimer = 0;
+const FOODS = [
+  { name: 'crumb', pts: 10, en: 18 }, { name: 'cake', pts: 25, en: 30 }, { name: 'jam', pts: 15, en: 24 }, { name: 'cherry', pts: 20, en: 22 }
+];
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+function spawnFood() {
+  const k = FOODS[Math.random() < 0.5 ? 0 : (Math.random() * FOODS.length) | 0];
+  let x, y, tries = 0;
+  do { x = rnd(14, W - 14); y = rnd(30, H - 14); tries++; }
+  while (tries < 20 && Math.hypot(x - fly.x, y - fly.y) < 40);
+  foods.push({ ...k, x, y, ph: Math.random() * 6 });
+}
+function reset() {
+  score = 0; energy = 100; time = 0; shake = 0;
+  fly.x = W / 2; fly.y = H * 0.7; fly.vx = fly.vy = 0; fly.ang = -Math.PI / 2;
+  foods = []; swatters = []; spiders = []; puffs = [];
+  swatTimer = 2.5; spiderTimer = 8;
+  for (let i = 0; i < 3; i++) spawnFood();
+}
+function puff(x, y, col, n = 8) {
+  for (let i = 0; i < n; i++) puffs.push({ x, y, vx: rnd(-50, 50), vy: rnd(-50, 50), life: rnd(.3, .6), col });
+}
+function die(why) {
+  state = 'over'; overAt = performance.now(); shake = 0.4;
+  if (score > best) { best = score; try { localStorage.setItem('flysim-best', best); } catch (e) {} }
+  puff(fly.x, fly.y, C.ink, 14);
+  beep(200, .5, 'sawtooth', 40, .12);
+  overWhy = why;
+}
+let overWhy = '';
+
+// ---------- input ----------
+const input = { active: false, id: null, ax: 0, ay: 0, x: 0, y: 0 };
+const keys = {};
+function pt(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault(); initAudio();
+  if (state !== 'play') {
+    if (state === 'over' && performance.now() - overAt < 700) return;
+    reset(); state = 'play'; beep(520, .12, 'square', 880);
+  }
+  const p = pt(e);
+  input.active = true; input.id = e.pointerId; input.ax = input.x = p.x; input.ay = input.y = p.y;
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  if (!input.active || e.pointerId !== input.id) return;
+  e.preventDefault();
+  const p = pt(e); input.x = p.x; input.y = p.y;
+  // anchor trails the finger so direction changes stay responsive
+  const dx = input.x - input.ax, dy = input.y - input.ay, d = Math.hypot(dx, dy), max = 26;
+  if (d > max) { input.ax = input.x - dx / d * max; input.ay = input.y - dy / d * max; }
+});
+const up = e => { if (e.pointerId === input.id) input.active = false; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+['touchstart', 'touchmove', 'gesturestart'].forEach(n => document.addEventListener(n, e => e.preventDefault(), { passive: false }));
+addEventListener('keydown', e => {
+  keys[e.key] = true; initAudio();
+  if ((e.key === ' ' || e.key === 'Enter') && state !== 'play' && !(state === 'over' && performance.now() - overAt < 700)) { reset(); state = 'play'; }
+});
+addEventListener('keyup', e => keys[e.key] = false);
+
+// ---------- update ----------
+function update(dt) {
+  if (shake > 0) shake -= dt;
+  puffs = puffs.filter(p => (p.life -= dt) > 0);
+  puffs.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; });
+  if (state !== 'play') return;
+  time += dt;
+  energy -= dt * (4 + Math.min(time * 0.03, 3));
+  if (energy <= 0) { energy = 0; return die('STARVED'); }
+
+  // steering
+  let ix = 0, iy = 0;
+  if (input.active) {
+    const dx = input.x - input.ax, dy = input.y - input.ay, d = Math.hypot(dx, dy);
+    if (d > 2) { const s = Math.min(d / 22, 1); ix = dx / d * s; iy = dy / d * s; }
+  }
+  if (keys.ArrowLeft || keys.a) ix -= 1; if (keys.ArrowRight || keys.d) ix += 1;
+  if (keys.ArrowUp || keys.w) iy -= 1; if (keys.ArrowDown || keys.s) iy += 1;
+  const ACC = 420, MAX = 100;
+  fly.vx += ix * ACC * dt; fly.vy += iy * ACC * dt;
+  const damp = Math.exp(-3.2 * dt); fly.vx *= damp; fly.vy *= damp;
+  const sp = Math.hypot(fly.vx, fly.vy);
+  if (sp > MAX) { fly.vx *= MAX / sp; fly.vy *= MAX / sp; }
+  fly.x += fly.vx * dt; fly.y += fly.vy * dt;
+  fly.x = Math.max(5, Math.min(W - 5, fly.x)); fly.y = Math.max(5, Math.min(H - 5, fly.y));
+  if (sp > 12) { const a = Math.atan2(fly.vy, fly.vx); let da = a - fly.ang; da = Math.atan2(Math.sin(da), Math.cos(da)); fly.ang += da * Math.min(1, dt * 12); }
+
+  // eat
+  foods = foods.filter(f => {
+    if (Math.hypot(f.x - fly.x, f.y - fly.y) < 9) {
+      score += f.pts; energy = Math.min(100, energy + f.en);
+      puff(f.x, f.y, C.yellow); beep(660, .08, 'square', 1320); spawnFood(); return false;
+    }
+    return true;
+  });
+
+  // swatters
+  swatTimer -= dt;
+  if (swatTimer <= 0) {
+    swatTimer = Math.max(1.1, 3.4 - time * 0.04);
+    swatters.push({ x: Math.max(18, Math.min(W - 18, fly.x + fly.vx * 0.7 + rnd(-10, 10))),
+      y: Math.max(18, Math.min(H - 18, fly.y + fly.vy * 0.7 + rnd(-10, 10))), t: 0, hit: false });
+  }
+  const WARN = Math.max(0.7, 1.15 - time * 0.005);
+  swatters.forEach(s => {
+    const before = s.t; s.t += dt;
+    if (before < WARN && s.t >= WARN) {
+      shake = 0.15; beep(110, .15, 'sawtooth', 50, .1);
+      if (Math.hypot(fly.x - s.x, fly.y - s.y) < 17 && state === 'play') die('SWATTED');
+    }
+  });
+  swatters = swatters.filter(s => s.t < WARN + 0.45);
+  swatters.WARN = WARN;
+
+  // spiders
+  spiderTimer -= dt;
+  const maxSp = Math.min(3, 1 + Math.floor(time / 25));
+  if (spiderTimer <= 0 && spiders.length < maxSp) {
+    spiderTimer = 10;
+    const side = (Math.random() * 4) | 0;
+    spiders.push({ x: side === 0 ? -8 : side === 1 ? W + 8 : rnd(0, W), y: side === 2 ? -8 : side === 3 ? H + 8 : rnd(0, H), ph: 0 });
+  }
+  spiders.forEach(s => {
+    const dx = fly.x - s.x, dy = fly.y - s.y, d = Math.hypot(dx, dy) || 1, v = Math.min(45, 20 + time * 0.3);
+    s.x += dx / d * v * dt; s.y += dy / d * v * dt; s.ph += dt * 10;
+    if (d < 7 && state === 'play') die('EATEN');
+  });
+}
+
+// ---------- drawing ----------
+const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+
+function drawFood(f, t) {
+  const x = Math.round(f.x), y = Math.round(f.y + Math.sin(t * 4 + f.ph) * 1.2);
+  R(x - 4, y + 4, 9, 2, 'rgba(0,0,0,.2)');
+  if (f.name === 'crumb') { R(x - 3, y - 2, 6, 4, C.yellow); R(x - 1, y - 3, 3, 1, C.yellow); R(x - 2, y - 1, 2, 1, C.brown); }
+  else if (f.name === 'cake') { R(x - 5, y - 3, 10, 7, C.pink); R(x - 5, y - 3, 10, 2, C.white); R(x - 5, y + 1, 10, 1, C.red); R(x - 1, y - 6, 2, 3, C.red); }
+  else if (f.name === 'jam') { R(x - 4, y - 1, 8, 6, C.red); R(x - 5, y - 3, 10, 3, C.grey); R(x - 3, y + 1, 2, 2, C.pink); }
+  else { R(x - 4, y - 1, 4, 4, C.red); R(x, y - 1, 4, 4, C.red); R(x - 3, y - 4, 1, 3, C.green); R(x - 2, y - 5, 4, 1, C.green); R(x - 3, y, 1, 1, C.white); }
+}
+
+function drawFly(t) {
+  const x = Math.round(fly.x), y = Math.round(fly.y);
+  R(x - 3, y + 6, 7, 3, 'rgba(0,0,0,.2)');
+  ctx.save(); ctx.translate(x, y); ctx.rotate(fly.ang + Math.PI / 2);
+  const f = Math.floor(t * 30) % 2;
+  // wings
+  ctx.globalAlpha = .85;
+  if (f) { R(-7, -3, 5, 3, C.wing); R(2, -3, 5, 3, C.wing); R(-6, 0, 4, 2, C.wing); R(2, 0, 4, 2, C.wing); }
+  else   { R(-6, -6, 4, 5, C.wing); R(2, -6, 4, 5, C.wing); R(-7, -2, 2, 2, C.wing); R(5, -2, 2, 2, C.wing); }
+  ctx.globalAlpha = 1;
+  // body
+  R(-2, -2, 4, 3, C.body); R(-2, 1, 4, 4, C.ink); R(-1, 2, 2, 1, C.grey);
+  R(-2, -5, 4, 3, C.body); R(-3, -5, 1, 2, C.eye); R(2, -5, 1, 2, C.eye);
+  R(-3, 0, 1, 1, C.ink); R(2, 0, 1, 1, C.ink); R(-3, 3, 1, 1, C.ink); R(2, 3, 1, 1, C.ink);
+  ctx.restore();
+}
+
+function drawSpider(s) {
+  const x = Math.round(s.x), y = Math.round(s.y), w = Math.sin(s.ph) > 0 ? 1 : 0;
+  R(x - 5, y + 6, 10, 2, 'rgba(0,0,0,.2)');
+  for (let i = 0; i < 4; i++) {
+    const oy = -3 + i * 2 + (i % 2 === w ? 1 : 0);
+    R(x - 8, y + oy, 5, 1, C.ink); R(x + 3, y + oy, 5, 1, C.ink);
+    R(x - 9, y + oy + 1, 1, 2, C.ink); R(x + 8, y + oy + 1, 1, 2, C.ink);
+  }
+  R(x - 3, y - 2, 6, 7, C.ink); R(x - 2, y - 4, 4, 3, C.body);
+  R(x - 2, y - 3, 1, 1, C.eye); R(x + 1, y - 3, 1, 1, C.eye); R(x - 1, y + 1, 2, 2, C.red);
+}
+
+function drawSwatter(s) {
+  const WARN = swatters.WARN || 1;
+  const x = Math.round(s.x), y = Math.round(s.y);
+  if (s.t < WARN) {
+    const k = s.t / WARN, r = Math.round(20 - 10 * k);
+    ctx.fillStyle = `rgba(26,28,44,${0.15 + 0.3 * k})`;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.strokeStyle = (Math.floor(s.t * 12) % 2) ? C.red : C.ink; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 16 + .5, y - 16 + .5, 32, 32);
+    return;
+  }
+  // slam: head + handle
+  const a = 1 - (s.t - WARN) / 0.45;
+  ctx.globalAlpha = Math.min(1, a * 2);
+  R(x - 3, y + 14, 7, 50, C.brown); R(x - 3, y + 14, 2, 50, '#a77b5a');
+  R(x - 15, y - 15, 30, 30, C.green);
+  R(x - 15, y - 15, 30, 2, C.ink); R(x - 15, y + 13, 30, 2, C.ink); R(x - 15, y - 15, 2, 30, C.ink); R(x + 13, y - 15, 2, 30, C.ink);
+  for (let i = -11; i <= 11; i += 4) { R(x + i, y - 13, 1, 26, '#257a42'); R(x - 13, y + i, 26, 1, '#257a42'); }
+  ctx.globalAlpha = 1;
+}
+
+function text(str, x, y, size = 10, col = C.white, align = 'left') {
+  ctx.font = `bold ${size}px "Courier New", monospace`; ctx.textAlign = align; ctx.textBaseline = 'top';
+  ctx.fillStyle = C.ink; ctx.fillText(str, Math.round(x) + 1, Math.round(y) + 1);
+  ctx.fillStyle = col; ctx.fillText(str, Math.round(x), Math.round(y));
+}
+
+function draw(now) {
+  const t = now / 1000;
+  ctx.save();
+  if (shake > 0) ctx.translate(Math.round(rnd(-2, 2)), Math.round(rnd(-2, 2)));
+  ctx.drawImage(bg, 0, 0);
+  foods.forEach(f => drawFood(f, t));
+  spiders.forEach(drawSpider);
+  if (state !== 'over' || overWhy !== 'SWATTED') drawFly(t);
+  else { R(fly.x - 5, fly.y - 3, 10, 6, C.ink); R(fly.x - 3, fly.y - 5, 6, 10, C.ink); R(fly.x - 1, fly.y - 1, 2, 2, C.eye); }
+  swatters.forEach(drawSwatter);
+  puffs.forEach(p => R(p.x, p.y, 2, 2, p.col));
+  ctx.restore();
+
+  // HUD
+  if (state === 'play') {
+    R(3, 3, 74, 10, C.ink); R(4, 4, 72, 8, '#3b3f5c');
+    const col = energy < 25 ? (Math.floor(t * 6) % 2 ? C.red : C.yellow) : C.green;
+    R(4, 4, Math.round(72 * energy / 100), 8, col);
+    text('ENERGY', 40, 4, 8, C.white, 'center');
+    text(String(score).padStart(5, '0'), W - 4, 3, 11, C.yellow, 'right');
+    if (input.active) {
+      ctx.globalAlpha = .35; ctx.strokeStyle = C.white; ctx.lineWidth = 1;
+      ctx.strokeRect(Math.round(input.ax) - 13.5, Math.round(input.ay) - 13.5, 27, 27);
+      R(input.x - 3, input.y - 3, 6, 6, C.white); ctx.globalAlpha = 1;
+    }
+  } else if (state === 'title') {
+    ctx.fillStyle = 'rgba(26,28,44,.72)'; ctx.fillRect(0, 0, W, H);
+    text('FLY', W / 2, 62, 40, C.yellow, 'center');
+    text('SIMULATOR', W / 2, 106, 18, C.white, 'center');
+    const y = 150; drawFly(t);
+    fly.ang = -Math.PI / 2 + Math.sin(t * 2) * .4; fly.x = W / 2 + Math.sin(t) * 30; fly.y = y + Math.cos(t * 1.5) * 8;
+    text('DRAG TO FLY', W / 2, 200, 10, C.white, 'center');
+    text('EAT FOOD', W / 2, 214, 10, C.green, 'center');
+    text('DODGE SWATTER', W / 2, 228, 10, C.red, 'center');
+    text('AVOID SPIDERS', W / 2, 242, 10, C.grey, 'center');
+    if (Math.floor(t * 2) % 2) text('TAP TO START', W / 2, 280, 12, C.yellow, 'center');
+    if (best) text('BEST ' + best, W / 2, 302, 9, C.white, 'center');
+  } else {
+    ctx.fillStyle = 'rgba(26,28,44,.72)'; ctx.fillRect(0, 0, W, H);
+    text(overWhy, W / 2, 90, 26, C.red, 'center');
+    text('GAME OVER', W / 2, 124, 14, C.white, 'center');
+    text('SCORE ' + score, W / 2, 160, 14, C.yellow, 'center');
+    text('BEST ' + best, W / 2, 182, 12, C.white, 'center');
+    if (score && score >= best) text('NEW RECORD!', W / 2, 204, 10, C.green, 'center');
+    if (performance.now() - overAt > 700 && Math.floor(t * 2) % 2) text('TAP TO RETRY', W / 2, 260, 12, C.yellow, 'center');
+  }
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt); draw(now);
+  requestAnimationFrame(frame);
+}
+reset(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
