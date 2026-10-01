@@ -59,8 +59,10 @@ const Fmt = {
   languageName(code) {
     try {
       const dn = new Intl.DisplayNames([navigator.language || 'en'], { type: 'language' });
-      return dn.of(code) || code;
-    } catch (e) { return code; }
+      const name = dn.of(code);
+      if (name && name !== code) return name;
+    } catch (e) { /* fall back to the built-in names */ }
+    return LANGUAGE_NAMES[code] || code;
   },
   plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
 };
@@ -71,10 +73,14 @@ const MoodScale = {
 };
 
 /* Supported recognition languages offered in Settings (BCP-47). The browser decides what it can actually recognize. */
-const LANGUAGES = [
-  'en-US', 'en-GB', 'en-AU', 'en-CA', 'en-IN', 'he-IL', 'ru-RU', 'uk-UA', 'de-DE', 'fr-FR', 'es-ES', 'es-MX', 'it-IT', 'pt-BR', 'pt-PT',
-  'nl-NL', 'sv-SE', 'nb-NO', 'da-DK', 'fi-FI', 'pl-PL', 'cs-CZ', 'ro-RO', 'hu-HU', 'el-GR', 'tr-TR', 'ar-SA', 'hi-IN', 'ja-JP', 'ko-KR', 'zh-CN', 'zh-TW', 'th-TH', 'vi-VN', 'id-ID'
-];
+const LANGUAGE_NAMES = {
+  'en-US': 'English (US)', 'en-GB': 'English (UK)', 'en-AU': 'English (Australia)', 'en-CA': 'English (Canada)', 'en-IN': 'English (India)',
+  'he-IL': 'Hebrew', 'ru-RU': 'Russian', 'uk-UA': 'Ukrainian', 'de-DE': 'German', 'fr-FR': 'French', 'es-ES': 'Spanish (Spain)', 'es-MX': 'Spanish (Mexico)',
+  'it-IT': 'Italian', 'pt-BR': 'Portuguese (Brazil)', 'pt-PT': 'Portuguese (Portugal)', 'nl-NL': 'Dutch', 'sv-SE': 'Swedish', 'nb-NO': 'Norwegian', 'da-DK': 'Danish',
+  'fi-FI': 'Finnish', 'pl-PL': 'Polish', 'cs-CZ': 'Czech', 'ro-RO': 'Romanian', 'hu-HU': 'Hungarian', 'el-GR': 'Greek', 'tr-TR': 'Turkish', 'ar-SA': 'Arabic',
+  'hi-IN': 'Hindi', 'ja-JP': 'Japanese', 'ko-KR': 'Korean', 'zh-CN': 'Chinese (Mandarin, China)', 'zh-TW': 'Chinese (Mandarin, Taiwan)', 'th-TH': 'Thai', 'vi-VN': 'Vietnamese', 'id-ID': 'Indonesian'
+};
+const LANGUAGES = Object.keys(LANGUAGE_NAMES);
 
 const Icons = {
   mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>',

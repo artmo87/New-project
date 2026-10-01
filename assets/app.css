@@ -14,6 +14,8 @@
   --warn: #9A6B16;
   --warn-soft: #F7EBD2;
   --rec: #D64B45;
+  --chart-1: #1D8A6E;
+  --chart-2: #B8601A;
   --shadow: 0 1px 2px rgba(20, 40, 32, 0.06), 0 6px 20px rgba(20, 40, 32, 0.06);
   --radius: 14px;
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -26,14 +28,14 @@
   :root:not([data-theme="light"]) {
     --bg: #121A17; --surface: #1A2420; --surface-2: #22302A; --fg: #E6EDE9; --muted: #9AAAA2; --line: #2B3832;
     --accent: #6FC3AC; --accent-ink: #0F1A16; --accent-soft: #1F3A33; --danger: #E57E76; --danger-soft: #3A2320;
-    --warn: #E0B35B; --warn-soft: #3A3120; --rec: #F0655E; --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.25);
+    --warn: #E0B35B; --warn-soft: #3A3120; --rec: #F0655E; --chart-1: #3FA584; --chart-2: #C97A32; --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.25);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #121A17; --surface: #1A2420; --surface-2: #22302A; --fg: #E6EDE9; --muted: #9AAAA2; --line: #2B3832;
   --accent: #6FC3AC; --accent-ink: #0F1A16; --accent-soft: #1F3A33; --danger: #E57E76; --danger-soft: #3A2320;
-  --warn: #E0B35B; --warn-soft: #3A3120; --rec: #F0655E; --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.25);
+  --warn: #E0B35B; --warn-soft: #3A3120; --rec: #F0655E; --chart-1: #3FA584; --chart-2: #C97A32; --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.25);
   color-scheme: dark;
 }
 
@@ -226,14 +228,14 @@ textarea.input { min-height: 120px; resize: vertical; line-height: 1.45; }
 .chart text { font-family: var(--font-ui); font-size: 11px; fill: var(--muted); }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
-.chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.chart .line.before { stroke: var(--muted); stroke-dasharray: 4 3; }
-.chart .area { fill: var(--accent); opacity: 0.12; }
-.chart .dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
-.chart .dot.before { fill: var(--muted); }
+.chart .line { fill: none; stroke: var(--chart-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .line.before { stroke: var(--chart-2); stroke-dasharray: 4 3; }
+.chart .area { fill: var(--chart-1); opacity: 0.12; }
+.chart .dot { fill: var(--chart-1); stroke: var(--surface); stroke-width: 2; }
+.chart .dot.before { fill: var(--chart-2); }
 .legend { display: flex; gap: 14px; font-size: 0.78rem; color: var(--muted); }
-.legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin-right: 6px; }
-.legend i.before { border-top: 2px dashed var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--chart-1); vertical-align: middle; margin-right: 6px; }
+.legend i.before { border-top: 2px dashed var(--chart-2); }
 
 /* Lock & onboarding */
 .lock { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center; }

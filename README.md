@@ -1,118 +1,122 @@
-# Therapist Copilot (iPhone)
+# Therapist Copilot
 
-A private, fully on-device iPhone app that **records your therapy session,
-transcribes it, writes a session summary, and gives you practical suggestions**
-for the week and for your next session.
+A private web app that **records your therapy session, transcribes it live,
+writes a plain-language summary and gives you practical suggestions** for the
+week and for your next session. It runs entirely in your browser: there are no
+accounts, no servers behind it, no API keys and nothing to pay for.
 
-- **No servers, no accounts, no API keys, no internet.** The app contains no
-  networking code. Audio, transcripts, summaries and notes live only in the
-  app's own folder on your iPhone (included in your normal iPhone backup).
-- **Transcription** uses Apple's Speech framework in on-device mode.
-- **Summary & suggestions** come from two in-house engines:
-  - *Classic analysis* (always available): a rule-based language engine that finds
-    themes, emotions, key moments, thinking patterns, commitments and mood trend,
-    then picks suggestions from a built-in library of therapy-informed skills.
-  - *On-device AI* (optional): on iPhones that support Apple Intelligence
-    (iPhone 15 Pro and newer, iOS 26+), Apple's on-device foundation model rewrites
-    the overview, highlights, suggestions and questions. It falls back to Classic
-    automatically. Nothing is sent anywhere.
+Works in **Safari on iPhone** (add it to your Home Screen and it behaves like an
+app), Safari on Mac, and Chrome or Edge on a computer.
 
-> Not medical advice. This app helps you remember and reflect; it does not
-> replace your therapist. Recording other people needs their consent in many
-> places. Tell your therapist you are recording and ask first.
+---
 
-## What's inside
+## Start using it (5 minutes, free)
 
-| Area | What you get |
+The app is a static website, so it only needs a place to be served over https.
+The simplest is GitHub Pages, straight from this repository:
+
+1. Open the repository on GitHub → **Settings** → **Pages** (left sidebar).
+2. Under *Build and deployment* choose **Deploy from a branch**, pick the branch
+   that holds this code (`main`, or `claude/therapist-copilot` until it is merged)
+   and the folder **/ (root)**. Click **Save**.
+3. Wait about a minute, then open
+   `https://<your-github-username>.github.io/<repository-name>/`
+   (for this repository: `https://artmo87.github.io/New-project/`).
+4. On your iPhone, open that address in Safari, tap **Share → Add to Home Screen**.
+   Open it from the Home Screen like any app.
+5. Tap the big record button. Allow the microphone and speech recognition when
+   asked. That is it.
+
+If the repository is private, GitHub Pages needs a paid GitHub plan; the
+alternative is any static host (Netlify, Cloudflare Pages, your own server) —
+upload the files, done. On a computer you can also just open
+`dist/therapist-copilot.html` directly from disk in Chrome.
+
+> Microphone access in browsers requires https (or localhost). A plain `http://`
+> address on a phone will not be able to record.
+
+## What you get
+
+| | |
 | --- | --- |
-| Record | Pre-session mood check-in, live transcript, level meter, pause/resume, keeps recording with the screen locked, phone-call interruption handling |
-| Transcript | Timestamped segments, tap to play that moment, speaker tags (Me / Therapist), edit text, search |
-| Summary | Overview, highlights, themes, emotions, mood trajectory chart, key moments, thinking patterns with gentle reframes, detected commitments |
-| Suggestions | Reflection prompts, practices to try, self-care, things to bring to the next session, recurring-pattern notes across sessions |
-| Prepare | Open commitments across sessions, questions to bring, recurring themes, mood trend chart, journal, shareable prep sheet |
-| Privacy | Face ID / passcode lock, delete audio or whole sessions, export everything as Markdown, delete all data |
-| Safety | If crisis language is detected, a calm resources card is shown (988 in the US, Samaritans in the UK/IE, local emergency numbers elsewhere) |
+| **Record** | Mood check-in before and after, live transcript while you talk, level meter, pause/resume, screen kept awake, audio saved in 10-second pieces so an interrupted session is recovered on the next launch |
+| **Transcript** | Timestamped lines; tap a time to replay that moment; mark who spoke (Me / Therapist); edit any line; search |
+| **Summary** | Overview, highlights, themes with counts, emotions, tone through the session (chart), key moments, thinking patterns with gentle reframes, commitments heard in the session |
+| **Suggestions** | Practical, therapy-informed suggestions grouped as Reflect / Practice / Self-care / Bring to next session / Patterns across sessions, each with the reason it was picked; one tap to turn into a commitment or a question |
+| **Prepare** | Open commitments across all sessions, questions to bring, recurring themes, mood before/after trend, journal, shareable prep sheet |
+| **Privacy** | Everything stays in the browser's storage on your device. PIN lock. Export any session as Markdown, back up everything as JSON, restore, delete all |
+| **Safety** | If crisis language is detected a calm resources card appears (988 in the US, Samaritans in the UK/IE, local emergency numbers elsewhere) |
 
-## Install on your iPhone (about 10 minutes, free)
+## How the "in-house" parts work
 
-You need a Mac with Xcode (free from the Mac App Store, version 16 or newer;
-Xcode 26 recommended so the On-device AI engine compiles too) and a Lightning/USB-C cable.
-No paid developer account is needed.
+- **Transcription** uses the speech recognition built into your browser and
+  device (the Web Speech API). On iPhone that is the same Apple dictation service
+  your keyboard uses; in Chrome it is Google's recognizer, or Chrome's on-device
+  recognizer when the browser offers it (the app prefers on-device when it can).
+  Nothing is sent to the authors of this app or to any other party.
+- **Summary and suggestions** come from a rule-based engine inside the app
+  (`js/insights.js` + `js/lexicon.js`): sentence and word analysis, a therapy
+  lexicon of 18 themes, 20 emotions and 10 common thinking patterns, commitment
+  detection, extractive highlights, tone trajectory, and a library of
+  suggestions and questions. No model download, no network, instant.
+- **On-device AI (optional)**: browsers that ship a built-in language model
+  (Chrome on desktop) can rewrite the overview, highlights, suggestions and
+  questions in more natural language. The model runs inside the browser.
+  Settings shows whether your browser has it. Everything works without it.
+- **Storage** is IndexedDB in your browser. Audio is kept as a compressed file
+  (m4a on Safari, webm/opus on Chrome).
+- **Offline**: a service worker caches the app, so it opens without a connection.
 
-1. **Get the project.** Download this repository as a ZIP (green *Code* button →
-   *Download ZIP*, or the `TherapistCopilot.zip` attached to the session) and unzip it.
-2. **Open** `TherapistCopilot.xcodeproj` in Xcode.
-3. **Sign it.** Click the blue project icon at the top of the left sidebar →
-   target *TherapistCopilot* → *Signing & Capabilities*:
-   - tick *Automatically manage signing*,
-   - *Team*: choose your Apple ID (Xcode → Settings → Accounts → “+” to add it; a
-     free Apple ID works),
-   - if Xcode complains the bundle identifier is taken, change
-     `com.artmo87.TherapistCopilot` to anything unique, e.g. `com.yourname.TherapistCopilot`.
-4. **Connect your iPhone** with the cable, unlock it, tap *Trust* if asked.
-   On the iPhone enable Developer Mode if prompted: Settings → Privacy & Security →
-   Developer Mode → on (the phone restarts).
-5. **Choose your iPhone** in the device menu at the top of Xcode (next to the
-   scheme name) and press **Run** (▶ or ⌘R). The first build takes a minute.
-6. **Trust the app on the iPhone** the first time: Settings → General →
-   VPN & Device Management → your Apple ID → *Trust*. Then open *Therapist Copilot*.
-7. On first launch, allow **Microphone** and **Speech Recognition**.
-   Transcription runs on the device; if iOS needs to download the offline
-   language model it does so once in the background (Settings → General →
-   Keyboard → Dictation also triggers it).
+## Good to know
 
-With a free Apple ID the install stays valid for 7 days; plug in and press Run
-again to refresh it. With a paid developer account ($99/yr) it lasts a year and
-you can use TestFlight instead of the cable.
+- **Keep the screen on while recording.** Browsers pause the microphone when the
+  screen locks or the app goes to the background. The app requests a screen wake
+  lock; just leave it in the foreground (turn the brightness down if you like).
+- **Ask before recording.** Many places require everyone's consent to record a
+  conversation. Tell your therapist and ask first.
+- **Back up now and then.** Browsers can clear site data; Safari removes data from
+  sites you have not opened in a while unless the app is on your Home Screen.
+  Settings → *Back up everything* saves a JSON file.
+- **If live transcription will not start on iPhone** while audio is being
+  recorded, set Settings → *Recording mode* to **Transcript only**. Some iOS
+  versions do not let a page use the microphone for recording and dictation at
+  the same time.
+- **Languages**: pick your language in Settings. The transcript follows it; the
+  summary engine is tuned for English and will be rougher in other languages.
+- **Not medical advice.** This is a reflection aid, not a substitute for your
+  therapist.
 
-### Troubleshooting
+## Browser support
 
-- *"Signing for TherapistCopilot requires a development team"* → step 3.
-- *"Untrusted Developer"* on the phone → step 6.
-- *Build errors mentioning `FoundationModels`* → you are on Xcode 16. Either update
-  to Xcode 26 or delete `TherapistCopilot/Services/FoundationModelsInsightEngine.swift`
-  and replace the body of `InsightsService.generate` so it returns the Classic result
-  (the file has a comment showing the two lines to keep). Everything else works.
-- *Live transcript stays empty* → check Settings → Transcription language. Only
-  some languages support on-device recognition; the Settings screen marks the ones
-  that need Apple's servers. Turning *On-device only* off sends audio to Apple's
-  speech servers (still no third-party service) — your choice.
-- *Recording stopped when the phone locked* → make sure you ran the app from this
-  project (the `audio` background mode is in `Info.plist`).
-
-## How it works (technical)
-
-```
-Microphone ──AVAudioEngine tap──▶ AAC .m4a file (Documents/Recordings)
-                     │
-                     └──▶ SFSpeechRecognizer (on-device, 30–55 s rotating segments)
-                                  │
-                                  ▼
-                        TranscriptSegment[] (timestamps)
-                                  │
-            ┌─────────────────────┴───────────────────────┐
-            ▼                                             ▼
- HeuristicInsightEngine (NaturalLanguage +      FoundationModelsInsightEngine
- TherapyLexicon: themes, emotions, CBT          (iOS 26, Apple Intelligence,
- patterns, commitments, key moments,            optional, falls back)
- extractive highlights, mood trajectory)
-            └─────────────────────┬───────────────────────┘
-                                  ▼
-                 SessionInsights → JSON store (Documents/therapist-copilot-store.json)
-```
-
-- Swift 5 / SwiftUI, iOS 17+, iPhone and iPad. No third-party dependencies.
-- Project layout and every public API are documented in `docs/ARCHITECTURE.md`.
-- Files are written with iOS *complete file protection*; the store is a single
-  atomic JSON file. Deleting a session deletes its audio.
+| | Record audio | Live transcript | On-device AI |
+| --- | --- | --- | --- |
+| Safari, iPhone/iPad (iOS 16+) | yes | yes (Apple dictation) | no |
+| Safari, Mac | yes | yes | no |
+| Chrome / Edge, desktop | yes | yes (Google or on-device) | yes, when the browser has the model |
+| Chrome, Android | yes | yes | no |
+| Firefox | yes | no (no speech API) | no |
 
 ## Repository layout
 
 ```
-TherapistCopilot.xcodeproj/   Xcode project (file-system synchronized; just add files to the folder)
-TherapistCopilot/             App sources, Info.plist, Assets
-  Models/                     TherapySession, SessionInsights
-  Services/                   Recording, transcription, insights engines, store, export, lock
-  Views/                      SwiftUI screens
-docs/ARCHITECTURE.md          Contract every file follows
+index.html               app shell
+assets/app.css           styles (light + dark, phone first)
+assets/icons/            PWA icons
+js/util.js               formatting, icons, helpers
+js/lexicon.js            therapy lexicon (themes, emotions, patterns, suggestions, support resources)
+js/insights.js           classic insight engine
+js/ondevice-ai.js        optional Chrome built-in model enrichment
+js/transcriber.js        Web Speech API wrapper with run chaining and timestamps
+js/recorder.js           MediaRecorder + level meter + wake lock + crash-safe chunks
+js/db.js                 IndexedDB storage
+js/exporter.js           Markdown, backup/restore, download, share
+js/app.js                screens, routing, flows
+manifest.webmanifest     PWA manifest
+sw.js                    offline cache
+scripts/build-single-file.py   bundles everything into dist/therapist-copilot.html
+dist/therapist-copilot.html    single-file build (open directly in a desktop browser)
+ios-native/              an unfinished native Swift prototype, kept for reference
 ```
+
+No build step and no dependencies. Edit the files and reload. To refresh the
+single-file build: `python3 scripts/build-single-file.py`.

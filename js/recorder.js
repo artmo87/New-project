@@ -53,9 +53,14 @@ class SessionRecorder {
     if (this.state !== 'idle') throw new Error('Already recording.');
     const wantAudio = this.mode !== 'transcript';
     const wantTranscript = this.mode !== 'audio';
+    const standaloneHint = navigator.standalone ? ' If you opened the app from your Home Screen, try opening the same address in Safari itself.' : '';
     if (wantTranscript && !LiveTranscriber.isSupported()) {
-      if (!wantAudio) throw new Error('This browser has no speech recognition, so a transcript-only session is not possible here. Use Safari on iPhone/Mac or Chrome, or switch Recording mode to "Audio only".');
-      this.onWarning('This browser has no built-in speech recognition, so the session is recorded as audio only.');
+      if (!wantAudio) throw new Error('This browser has no speech recognition, so a transcript-only session is not possible here. Use Safari on iPhone/Mac or Chrome, or switch Recording mode to "Audio only".' + standaloneHint);
+      this.onWarning('This browser has no built-in speech recognition, so the session is recorded as audio only.' + standaloneHint);
+    }
+    if (wantAudio && !this.audioContext) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { try { this.audioContext = new AC(); } catch (e) { this.audioContext = null; } }
     }
     this.base = performance.now();
     this.pausedTotal = 0;
@@ -65,6 +70,7 @@ class SessionRecorder {
       try { await this._startAudio(); } catch (e) {
         if (this.transcriber) { this.transcriber.active = false; this.transcriber.stopping = true; try { this.transcriber._stopRun(); } catch (e2) { /* ignore */ } this.transcriber = null; }
         this.state = 'idle';
+        if (this.audioContext) { try { this.audioContext.close(); } catch (e2) { /* ignore */ } this.audioContext = null; }
         throw e;
       }
     }
@@ -124,7 +130,7 @@ class SessionRecorder {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     try {
-      this.audioContext = new AC();
+      if (!this.audioContext) this.audioContext = new AC();
       const source = this.audioContext.createMediaStreamSource(stream);
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 1024;

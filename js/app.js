@@ -820,7 +820,7 @@ const App = (() => {
     await recoverDraft().catch(() => {});
     render();
     refreshStatuses();
-    if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) {
+    if ('serviceWorker' in navigator && /^https?:/.test(location.protocol) && !window.__SINGLE_FILE__) {
       navigator.serviceWorker.register('./sw.js').then((reg) => {
         reg.addEventListener('updatefound', () => { const w = reg.installing; if (w) w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) toast('A new version is ready. Close and reopen the app to use it.'); }); });
       }).catch(() => {});

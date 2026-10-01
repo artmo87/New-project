@@ -13,6 +13,7 @@ html = re.sub(r'<link rel="stylesheet" href="\./assets/app\.css">', lambda m: "<
 html = html.replace('href="./assets/icons/icon-192.png"', 'href="' + data_uri("assets/icons/icon-192.png", "image/png") + '"')
 html = html.replace('href="./assets/icons/apple-touch-icon.png"', 'href="' + data_uri("assets/icons/apple-touch-icon.png", "image/png") + '"')
 html = re.sub(r'<link rel="manifest" href="\./manifest\.webmanifest">\n', "", html)
+html = html.replace("<script src=\"./js/util.js\"></script>", "<script>window.__SINGLE_FILE__ = true;</script>\n<script src=\"./js/util.js\"></script>", 1)
 
 def inline_script(m):
     src = m.group(1)
