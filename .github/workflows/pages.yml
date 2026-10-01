@@ -1,10 +1,8 @@
-# Publishes the web app to GitHub Pages on every push to main or the claude/therapist-copilot branch.
-# If Pages is not enabled yet, the configure step tries to enable it; otherwise enable it once in
-# Settings → Pages → Source: GitHub Actions.
+# Optional: publishes only the web app files to GitHub Pages.
+# Simplest setup needs no workflow at all: Settings → Pages → Deploy from a branch → this branch, / (root).
+# To use this workflow instead: Settings → Pages → Source: GitHub Actions, then Actions → "Deploy to GitHub Pages" → Run workflow.
 name: Deploy to GitHub Pages
 on:
-  push:
-    branches: [main, claude/therapist-copilot]
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,8 +24,6 @@ jobs:
           mkdir -p site
           cp -r index.html manifest.webmanifest sw.js assets js dist site/
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
